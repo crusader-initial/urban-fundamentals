@@ -73,14 +73,16 @@ export default function RankPage() {
   return (
     <div className="space-y-5">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">城市排名</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight">城市排名</h1>
+          <span className="text-sm text-neutral-500">50 城任意指标 Top N</span>
+        </div>
         <p className="text-sm text-neutral-600">
-          挑一个指标看 50 城里的排名分布。指标含义和单位见
-          <a href="/" className="mx-1 text-blue-600 hover:underline">城市</a>页详情。
+          按指标分类挑选，支持升/降序与数量切换。
         </p>
       </header>
 
-      <section className="flex flex-wrap items-end gap-4 rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="flex flex-wrap items-end gap-4 rounded-xl border border-neutral-200/80 bg-white p-4">
         <label className="flex flex-col gap-1 text-xs text-neutral-500">
           指标
           <select
@@ -128,7 +130,7 @@ export default function RankPage() {
         </label>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-5">
+      <section className="rounded-xl border border-neutral-200/80 bg-white p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold text-neutral-700">
             {meta?.label} {meta?.higherIsBetter === false ? '（越低越好）' : ''}

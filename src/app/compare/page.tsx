@@ -3,6 +3,7 @@ import { METRIC_DEFS, CATEGORY_LABELS, type MetricCategory } from '@/lib/types';
 import { formatMetric } from '@/components/MetricRow';
 import { CitySelect } from '@/components/CitySelect';
 import { CompareChart, type CompareChartRow } from '@/components/CompareChart';
+import { TierBadge } from '@/components/TierBadge';
 
 export default async function ComparePage({
   searchParams,
@@ -52,16 +53,37 @@ export default async function ComparePage({
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">城市对比</h1>
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight">城市对比</h1>
+          <span className="text-sm text-neutral-500">两城 6 大类指标横向比较</span>
+        </div>
+        <div className="flex flex-wrap items-end gap-4 rounded-xl border border-neutral-200/80 bg-white p-4">
           <CitySelect cities={cities} paramKey="a" selected={a} label="城市 A" />
+          <span className="pb-1.5 text-xs text-neutral-400">vs</span>
           <CitySelect cities={cities} paramKey="b" selected={b} label="城市 B" />
+          {cityA && cityB && (
+            <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-neutral-500">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-600" />
+                {cityA.name}
+                <TierBadge tier={cityA.tier} />
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-500" />
+                {cityB.name}
+                <TierBadge tier={cityB.tier} />
+              </span>
+            </div>
+          )}
         </div>
       </section>
 
       {!cityA || !cityB ? (
-        <p className="rounded-md border border-dashed border-neutral-300 bg-white p-6 text-sm text-neutral-500">
-          请选择两个城市开始对比。绿色高亮表示该指标在&ldquo;越高越好&rdquo;或&ldquo;越低越好&rdquo;维度上胜出方。条形图把每项指标按 50 城范围归一化到 0–100，便于看相对位置。
+        <p className="rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
+          请选择两个城市开始对比。
+          <br />
+          绿色高亮表示该指标在&ldquo;越高越好&rdquo;或&ldquo;越低越好&rdquo;维度上胜出方。
+          条形图按 50 城范围归一化到 0–100，便于看相对位置。
         </p>
       ) : (
         <section className="space-y-6">

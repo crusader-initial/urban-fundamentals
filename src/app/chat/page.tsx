@@ -61,13 +61,16 @@ export default function ChatPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">自然语言问答</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight">自然语言问答</h1>
+          <span className="text-sm text-neutral-500">Powered by Claude tool use</span>
+        </div>
         <p className="text-sm text-neutral-600">
-          基于 Claude tool use 查询数据库的真实数据。回答仅来源于 6 大类指标的结构化数据。
+          回答仅来源于数据库的结构化数据，每次会展开调用了哪些工具。
         </p>
       </header>
 
-      <div className="rounded-lg border border-neutral-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
         <div className="h-[60vh] space-y-4 overflow-y-auto p-5">
           {messages.length === 0 && (
             <div className="space-y-3 text-sm">
@@ -91,10 +94,10 @@ export default function ChatPage() {
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] rounded-lg px-4 py-2 text-sm ${
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === 'user'
                     ? 'bg-neutral-900 text-white'
-                    : 'bg-neutral-100 text-neutral-900'
+                    : 'bg-neutral-100 text-neutral-900 ring-1 ring-inset ring-neutral-200'
                 }`}
               >
                 <div className="whitespace-pre-wrap">{m.content}</div>
