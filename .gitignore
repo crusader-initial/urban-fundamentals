@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sqlite (auto-generated from seed-data.ts on first run)
+/data/*.db
+/data/*.db-wal
+/data/*.db-shm
+
+# claude code local settings
+/.claude/settings.local.json
