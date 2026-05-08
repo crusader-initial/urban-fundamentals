@@ -1,14 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getCityWithMetrics, getMetricSeries, listCities } from '@/lib/db';
+import { getCityWithMetrics, getMetricSeries } from '@/lib/db';
 import { METRIC_DEFS, CATEGORY_LABELS, type MetricCategory } from '@/lib/types';
 import { MetricRow } from '@/components/MetricRow';
 import { TrendChart } from '@/components/TrendChart';
 import { TierBadge } from '@/components/TierBadge';
 
-export function generateStaticParams() {
-  return listCities().map(c => ({ code: c.code }));
-}
+// 367 城全部 SSR；不用 generateStaticParams（避免首次构建预渲染 367 页）
 
 const TREND_METRICS: Array<{ key: string; title: string; unit: string; color: string }> = [
   { key: 'gdp', title: 'GDP 趋势', unit: '亿元', color: '#2563eb' },

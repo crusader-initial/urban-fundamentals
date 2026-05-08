@@ -3,6 +3,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { SEED_CITIES } from './seed-data';
 import { SEED_HISTORY } from './seed-history';
+import { SEED_ADCODE } from './seed-adcode';
+import { PREFECTURES } from './prefecture-list';
 import type { City, CityWithMetrics, MetricValue } from './types';
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -17,8 +19,10 @@ function init(db: Database.Database) {
       name TEXT NOT NULL,
       tier TEXT NOT NULL,
       province TEXT NOT NULL,
-      region TEXT NOT NULL
+      region TEXT NOT NULL,
+      adcode INTEGER
     );
+    CREATE INDEX IF NOT EXISTS idx_cities_adcode ON cities(adcode);
     CREATE TABLE IF NOT EXISTS metrics (
       city_code TEXT NOT NULL,
       metric_key TEXT NOT NULL,
@@ -37,15 +41,19 @@ function init(db: Database.Database) {
   if (count.n > 0) return;
 
   const insertCity = db.prepare(
-    'INSERT INTO cities (code, name, tier, province, region) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO cities (code, name, tier, province, region, adcode) VALUES (?, ?, ?, ?, ?, ?)',
   );
   const insertMetric = db.prepare(
     'INSERT INTO metrics (city_code, metric_key, as_of, value_num, value_text, unit, source) VALUES (?, ?, ?, ?, ?, ?, ?)',
   );
 
   const seed = db.transaction(() => {
+    // 1. 50 城手工详细数据
+    const seededAdcodes = new Set<number>();
     for (const c of SEED_CITIES) {
-      insertCity.run(c.code, c.name, c.tier, c.province, c.region);
+      const adcode = SEED_ADCODE[c.code] ?? null;
+      if (adcode) seededAdcodes.add(adcode);
+      insertCity.run(c.code, c.name, c.tier, c.province, c.region, adcode);
       for (const [key, m] of Object.entries(c.metrics)) {
         insertMetric.run(c.code, key, m.asOf, m.valueNum, m.valueText, m.unit, m.source);
       }
@@ -60,6 +68,14 @@ function init(db: Database.Database) {
         if (value == null) continue;
         insertMetric.run(h.city, key, h.year, value, null, unit, h.source);
       }
+    }
+
+    // 2. 全部地级行政区（剔除已 seed 的 50 城），仅含 name/province/region/level，无指标
+    for (const p of PREFECTURES) {
+      if (seededAdcodes.has(p.adcode)) continue;
+      // 卡片/详情页用短名（"石嘴山市"→"石嘴山"），自治州/盟保留全称以区分
+      const displayName = p.name.replace(/市$/, '');
+      insertCity.run(p.code, displayName, '其他', p.province, p.region, p.adcode);
     }
   });
   seed();
@@ -76,14 +92,21 @@ export function getDb(): Database.Database {
 
 export function listCities(): City[] {
   return getDb()
-    .prepare('SELECT code, name, tier, province, region FROM cities ORDER BY code')
+    .prepare('SELECT code, name, tier, province, region, adcode FROM cities ORDER BY code')
     .all() as City[];
 }
 
 export function getCity(code: string): City | null {
   const row = getDb()
-    .prepare('SELECT code, name, tier, province, region FROM cities WHERE code = ?')
+    .prepare('SELECT code, name, tier, province, region, adcode FROM cities WHERE code = ?')
     .get(code) as City | undefined;
+  return row ?? null;
+}
+
+export function getCityByAdcode(adcode: number): City | null {
+  const row = getDb()
+    .prepare('SELECT code, name, tier, province, region, adcode FROM cities WHERE adcode = ?')
+    .get(adcode) as City | undefined;
   return row ?? null;
 }
 
@@ -205,10 +228,13 @@ export function metricRange(key: string): { min: number; max: number } | null {
 }
 
 export function findCityByName(query: string): City | null {
+  const q = query.trim();
+  const variants = [q, q.replace(/[市州盟]$/, ''), q + '市'];
   const row = getDb()
     .prepare(
-      'SELECT code, name, tier, province, region FROM cities WHERE name = ? OR code = ? LIMIT 1',
+      `SELECT code, name, tier, province, region, adcode FROM cities
+       WHERE code = ? OR name IN (?, ?, ?) LIMIT 1`,
     )
-    .get(query, query.toLowerCase()) as City | undefined;
+    .get(q.toLowerCase(), ...variants) as City | undefined;
   return row ?? null;
 }

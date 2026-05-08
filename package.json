@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "refresh": "tsx scripts/refresh.ts"
+    "refresh": "tsx scripts/refresh.ts",
+    "build:prefectures": "tsx scripts/build-prefectures.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.0",

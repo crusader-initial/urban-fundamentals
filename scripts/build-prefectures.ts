@@ -1,0 +1,154 @@
+// 从 datav.aliyun 拉取 31 个省的 _full.json，提取所有地级行政单元（city/prefecture）
+// 合并为单个 GeoJSON 写到 public/geo/prefectures.json
+// 同时输出 src/lib/prefecture-list.ts，含 adcode/名称/省份/region 全表
+//
+// 运行：npm run build:prefectures
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+interface Feature {
+  type: 'Feature';
+  properties: {
+    adcode: number;
+    name: string;
+    center?: [number, number];
+    centroid?: [number, number];
+    level: string;
+    parent?: { adcode: number };
+  };
+  geometry: unknown;
+}
+
+const PROVINCES: Array<{ adcode: number; name: string; region: string }> = [
+  { adcode: 110000, name: '北京市', region: '华北' },
+  { adcode: 120000, name: '天津市', region: '华北' },
+  { adcode: 130000, name: '河北省', region: '华北' },
+  { adcode: 140000, name: '山西省', region: '华北' },
+  { adcode: 150000, name: '内蒙古自治区', region: '华北' },
+  { adcode: 210000, name: '辽宁省', region: '东北' },
+  { adcode: 220000, name: '吉林省', region: '东北' },
+  { adcode: 230000, name: '黑龙江省', region: '东北' },
+  { adcode: 310000, name: '上海市', region: '华东' },
+  { adcode: 320000, name: '江苏省', region: '华东' },
+  { adcode: 330000, name: '浙江省', region: '华东' },
+  { adcode: 340000, name: '安徽省', region: '华东' },
+  { adcode: 350000, name: '福建省', region: '华东' },
+  { adcode: 360000, name: '江西省', region: '华中' },
+  { adcode: 370000, name: '山东省', region: '华东' },
+  { adcode: 410000, name: '河南省', region: '华中' },
+  { adcode: 420000, name: '湖北省', region: '华中' },
+  { adcode: 430000, name: '湖南省', region: '华中' },
+  { adcode: 440000, name: '广东省', region: '华南' },
+  { adcode: 450000, name: '广西壮族自治区', region: '华南' },
+  { adcode: 460000, name: '海南省', region: '华南' },
+  { adcode: 500000, name: '重庆市', region: '西南' },
+  { adcode: 510000, name: '四川省', region: '西南' },
+  { adcode: 520000, name: '贵州省', region: '西南' },
+  { adcode: 530000, name: '云南省', region: '西南' },
+  { adcode: 540000, name: '西藏自治区', region: '西南' },
+  { adcode: 610000, name: '陕西省', region: '西北' },
+  { adcode: 620000, name: '甘肃省', region: '西北' },
+  { adcode: 630000, name: '青海省', region: '西北' },
+  { adcode: 640000, name: '宁夏回族自治区', region: '西北' },
+  { adcode: 650000, name: '新疆维吾尔自治区', region: '西北' },
+];
+
+const PUBLIC_GEO = path.join(process.cwd(), 'public/geo');
+const OUT_GEOJSON = path.join(PUBLIC_GEO, 'prefectures.json');
+const OUT_LIST = path.join(process.cwd(), 'src/lib/prefecture-list.ts');
+
+const MUNICIPALITIES = new Set([110000, 120000, 310000, 500000]); // 直辖市
+
+async function fetchProvince(adcode: number): Promise<Feature[]> {
+  const url = `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`${url} HTTP ${resp.status}`);
+  const json = (await resp.json()) as { features: Feature[] };
+  return json.features;
+}
+
+async function fetchMunicipalityFromCountry(): Promise<Feature[]> {
+  // 直辖市的 _full.json 是区级，市本级边界要从国家级 100000_full.json 取
+  const url = 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`${url} HTTP ${resp.status}`);
+  const json = (await resp.json()) as { features: Feature[] };
+  return json.features.filter(f => MUNICIPALITIES.has(f.properties.adcode));
+}
+
+async function main() {
+  await fs.mkdir(PUBLIC_GEO, { recursive: true });
+  const all: Feature[] = [];
+  const list: Array<{
+    adcode: number;
+    code: string;
+    name: string;
+    province: string;
+    region: string;
+    level: string;
+  }> = [];
+
+  // 1. 4 个直辖市（从 100000_full.json 取市本级）
+  process.stderr.write('[直辖市] fetching country-level… ');
+  const munis = await fetchMunicipalityFromCountry();
+  process.stderr.write(`${munis.length} 个\n`);
+  for (const f of munis) {
+    const p = PROVINCES.find(x => x.adcode === f.properties.adcode);
+    if (!p) continue;
+    all.push(f);
+    list.push({
+      adcode: f.properties.adcode,
+      code: `c${f.properties.adcode}`,
+      name: f.properties.name,
+      province: p.name,
+      region: p.region,
+      level: f.properties.level,
+    });
+  }
+
+  // 2. 27 个省/自治区，取 _full.json 里的全部地级单元
+  for (const p of PROVINCES) {
+    if (MUNICIPALITIES.has(p.adcode)) continue;
+    process.stderr.write(`[${p.name}] fetching… `);
+    try {
+      const feats = await fetchProvince(p.adcode);
+      process.stderr.write(`${feats.length} 个\n`);
+      for (const f of feats) {
+        all.push(f);
+        list.push({
+          adcode: f.properties.adcode,
+          code: `c${f.properties.adcode}`,
+          name: f.properties.name,
+          province: p.name,
+          region: p.region,
+          level: f.properties.level,
+        });
+      }
+      await new Promise(r => setTimeout(r, 100));
+    } catch (e) {
+      process.stderr.write(`✗ ${(e as Error).message}\n`);
+    }
+  }
+
+  const fc = { type: 'FeatureCollection' as const, features: all };
+  await fs.writeFile(OUT_GEOJSON, JSON.stringify(fc));
+  process.stderr.write(`\nwrote ${OUT_GEOJSON} (${all.length} features, ${(JSON.stringify(fc).length / 1024).toFixed(0)} KB)\n`);
+
+  const tsBody = `// AUTO-GENERATED by scripts/build-prefectures.ts. DO NOT EDIT.
+export interface Prefecture {
+  adcode: number;
+  code: string;       // "c{adcode}" — 与现有手工 50 城的 code 命名空间区分
+  name: string;
+  province: string;
+  region: string;
+  level: string;      // "city" | "district" 等（直辖市为 province）
+}
+
+export const PREFECTURES: Prefecture[] = ${JSON.stringify(list, null, 2)};
+`;
+  await fs.writeFile(OUT_LIST, tsBody);
+  process.stderr.write(`wrote ${OUT_LIST} (${list.length} 项)\n`);
+}
+
+main();

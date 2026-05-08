@@ -30,6 +30,7 @@ export interface City {
   tier: string;
   province: string;
   region: string;
+  adcode?: number | null;     // 行政区划码（与 datav GeoJSON 对齐）
 }
 
 export interface CityWithMetrics extends City {
