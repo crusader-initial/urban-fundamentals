@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { listCities, getMetricForCity } from '@/lib/db';
+import { computeProvinceStats, normalizeProvince } from '@/lib/province-stats';
 import { TierBadge } from '@/components/TierBadge';
+import { HomeMap } from '@/components/HomeMap';
 
 const TIER_FILTERS = ['全部', '一线', '新一线', '二线'] as const;
 
@@ -8,7 +10,7 @@ interface CityCard {
   code: string;
   name: string;
   tier: string;
-  province: string;
+  province: string;       // 全称（normalized）
   region: string;
   gdp: number | null;
   pop: number | null;
@@ -23,30 +25,41 @@ function fmt(v: number | null, unit: string): string {
   return v.toLocaleString();
 }
 
+function buildHref(params: Record<string, string | undefined>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) sp.set(k, v);
+  const qs = sp.toString();
+  return qs ? `/?${qs}` : '/';
+}
+
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string }>;
+  searchParams: Promise<{ tier?: string; province?: string }>;
 }) {
-  const { tier = '全部' } = await searchParams;
+  const { tier = '全部', province } = await searchParams;
   const all = listCities();
   const cards: CityCard[] = all.map(c => ({
     code: c.code,
     name: c.name,
     tier: c.tier,
-    province: c.province,
+    province: normalizeProvince(c.province),
     region: c.region,
     gdp: getMetricForCity(c.code, 'gdp')?.valueNum ?? null,
     pop: getMetricForCity(c.code, 'permanent_pop')?.valueNum ?? null,
     perCapita: getMetricForCity(c.code, 'gdp_per_capita')?.valueNum ?? null,
     growth: getMetricForCity(c.code, 'gdp_growth')?.valueNum ?? null,
   }));
-  const filtered =
-    tier === '全部' ? cards : cards.filter(c => c.tier === tier);
+
+  let filtered = cards;
+  if (tier !== '全部') filtered = filtered.filter(c => c.tier === tier);
+  if (province) filtered = filtered.filter(c => c.province === province);
   filtered.sort((a, b) => (b.gdp ?? 0) - (a.gdp ?? 0));
 
   const tierCounts: Record<string, number> = { 全部: cards.length };
   for (const c of cards) tierCounts[c.tier] = (tierCounts[c.tier] ?? 0) + 1;
+
+  const provinceStats = computeProvinceStats();
 
   return (
     <div className="space-y-10">
@@ -57,22 +70,30 @@ export default async function Home({
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-neutral-600">
           覆盖经济、产业、人口、房价、就业、城市资源 6 大维度共 27 项指标，
-          含 2020-2023 年 GDP / 人口 / 财政历史。点击城市卡看详情，去
-          <Link href="/rank" className="mx-1 text-blue-600 hover:underline">排名</Link>
-          /
-          <Link href="/compare" className="mx-1 text-blue-600 hover:underline">对比</Link>
-          /
-          <Link href="/chat" className="mx-1 text-blue-600 hover:underline">问答</Link>
-          做更多分析。
+          含 2020-2023 年 GDP / 人口 / 财政历史。点击地图省份或下方城市卡看详情。
         </p>
+      </section>
 
-        <div className="flex flex-wrap gap-2 pt-2">
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-sm font-semibold text-neutral-700">
+            省份分布 · 按总 GDP 着色
+          </h2>
+          <span className="text-xs text-neutral-400">
+            悬停看省内城市，点击筛选
+          </span>
+        </div>
+        <HomeMap data={provinceStats} />
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
           {TIER_FILTERS.map(t => {
             const active = t === tier;
             return (
               <Link
                 key={t}
-                href={t === '全部' ? '/' : `/?tier=${encodeURIComponent(t)}`}
+                href={buildHref({ tier: t === '全部' ? undefined : t, province })}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   active
                     ? 'bg-neutral-900 text-white'
@@ -88,6 +109,16 @@ export default async function Home({
               </Link>
             );
           })}
+          {province && (
+            <Link
+              href={buildHref({ tier: tier === '全部' ? undefined : tier })}
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200 hover:bg-amber-100"
+            >
+              {province}
+              <span aria-hidden className="text-[14px] leading-none">×</span>
+            </Link>
+          )}
+          <span className="ml-auto text-xs text-neutral-500">{filtered.length} 个城市</span>
         </div>
       </section>
 
@@ -148,6 +179,11 @@ export default async function Home({
             </div>
           </Link>
         ))}
+        {filtered.length === 0 && (
+          <div className="col-span-full rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-500">
+            没有符合筛选条件的城市
+          </div>
+        )}
       </section>
     </div>
   );

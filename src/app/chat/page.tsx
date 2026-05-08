@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { ChatSettings, loadConfig, type ChatConfig } from '@/components/ChatSettings';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -19,7 +20,13 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [config, setConfig] = useState<ChatConfig | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setConfig(loadConfig());
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,6 +44,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: next.map(m => ({ role: m.role, content: m.content })),
+          config: config ?? undefined,
         }),
       });
       const data = await res.json();
@@ -58,16 +66,33 @@ export default function ChatPage() {
     }
   }
 
+  const providerLabel =
+    config?.provider === 'openai' ? 'OpenAI 兼容' : 'Anthropic';
+  const modelLabel = config?.model ?? '默认';
+
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight">自然语言问答</h1>
-          <span className="text-sm text-neutral-500">Powered by Claude tool use</span>
+      <header className="flex items-start justify-between">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="text-3xl font-semibold tracking-tight">自然语言问答</h1>
+            <span className="text-sm text-neutral-500">基于 LLM tool use</span>
+          </div>
+          <p className="text-sm text-neutral-600">
+            回答仅来源于数据库的结构化数据，每次会展开调用了哪些工具。
+          </p>
         </div>
-        <p className="text-sm text-neutral-600">
-          回答仅来源于数据库的结构化数据，每次会展开调用了哪些工具。
-        </p>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs text-neutral-600 hover:border-neutral-500"
+          title="模型设置"
+        >
+          <span className="hidden font-mono text-[10px] text-neutral-500 sm:inline">
+            {providerLabel} · {modelLabel}
+          </span>
+          <span aria-hidden>⚙</span>
+          <span className="sr-only">模型设置</span>
+        </button>
       </header>
 
       <div className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
@@ -150,6 +175,12 @@ export default function ChatPage() {
           </button>
         </form>
       </div>
+
+      <ChatSettings
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onChange={setConfig}
+      />
     </div>
   );
 }
